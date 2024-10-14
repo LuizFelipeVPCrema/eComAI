@@ -9,7 +9,7 @@ class Product:
         self.initial_description = data.get('initial_description')
         self.enhanced_description = data.get('enhanced_description')
         self.tags = data.get('tags')
-        self.image_url = data.get('image_url')
+        self.full_response = data.get('full_response')
         
     def to_dict(self):
         return{
@@ -19,5 +19,5 @@ class Product:
             'initial_description': self.initial_description,
             'enhanced_description': self.enhanced_description,
             'tags': self.tags,
-            'image_url': self.image_url
+            'full_response': self.full_response
         }

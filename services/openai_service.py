@@ -1,59 +1,76 @@
-import openai
+import base64
+import requests
 from config import Config
+from utils.helpers import parse_openai_response
 
-openai.api_key = Config.OPENAI_API_KEY
 
+# OpenAI API Key
+api_key = Config.OPENAI_API_KEY
 
-def enhance_product_description(title, description, image_url=None):
-    messages = [
-        {"role": "system", "content": "Você é um especialista em marketing de produtos para e-commerce."},
-        {
+def enhance_product_description(base64_image, title=None, description=None):
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}"
+    }
+
+    # Define the prompt and image data in the messages
+    payload = {
+        "model": "gpt-4o-mini",
+        "messages": [
+            {
             "role": "user",
-            "content": f"Título do Produto: {title}\nDescrição Inicial: {description}"
-        }
-    ]
-    if image_url is None:
-        messages.append({"role": "user", "content": f"Imagem do Produto: {image_url}"})
-    
-    
-    prompt = f"""
-    Por favor, forneça:
-    
-    Título do Produto: {title}
-    Descrição Inicial: {description}
-    
-    Por favor, forneça:
-    
-    1. Uma descrição detalhada e envolvente do produto.
-    2. Uma lista de tags relevantes separadas por vírgulas.
-    3. Um título otimizado para o produto.
-    
-    Responda no seguinte formato:
-    
-    Descrição Aprimorada: <sua descrição aqui>
-    
-    Tags: <tag1>, <tag2>, <tag3>, ...
-    
-    Título Otimizado: <seu título aqui>
-    """
-    
-    messages.append({"role": "user", "content": prompt})
-    
+            "content": [
+                {
+                    "type": "text",
+                    "text": f"Por favor, gere um título, descrição aprimorada e tags baseadas nesta imagem do produto: {description}. Título sugerido: {title}."
+                },
+                {
+                    "type": "text",
+                    "text": (
+                        "Por favor, gere um título otimizado, descrição aprimorada e tags baseadas nesta imagem do produto."
+                        " Certifique-se de que a resposta siga exatamente o formato abaixo:"
+                        "\n\n"
+                        "**Título Sugerido:** [Coloque o título aqui]\n\n"
+                        "**Descrição Aprimorada:**\n[Coloque a descrição aqui]\n\n"
+                        "**Tags:**\n- [Tag1],\n- [Tag2],\n- [Tag3]\n\n"
+                        "As tags devem estar separadas por vírgulas e listadas uma por linha, começando com '-'."
+                    )
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/jpg;base64,{base64_image}"
+                    }
+                }
+            ]
+            }
+        ],
+        "max_tokens": 300
+    }
+
     try:
-    
-        response = openai.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=messages,
-            max_tokens=500,
-            temperature=0.7,
-            n=1,
-            stop=None
-        )
+        response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
+
+        if response.status_code != 200:
+            return {"error": f"Erro ao processar a imagem: {response.status_code} - {response.json()}"}
         
-        # Extrair a resposta
-        content = response.choices[0].message.content.strip()
-        
-        return content
-    except AttributeError:
-        print("Erro: Resposta da OpenAI está vazia ou mal formatada")
-        content = "Erro ao processar a descrição do produto"
+        result = response.json()
+
+        if not result or "choices" not in result or not result["choices"]:
+            return {"error": "Erro ao processar a imagem: resposta inválida do ChatGPT"}
+
+        # Extração do conteúdo
+        content = result["choices"][0]["message"]["content"].strip()
+
+        parsed_result = parse_openai_response(content)
+
+        # Aqui você pode ajustar como deseja extrair as informações (título, descrição, tags) do conteúdo retornado
+        return {
+            'optimized_title': parsed_result['optimized_title'],  # Título otimizado pode ser processado conforme necessário
+            'enhanced_description': parsed_result['enhanced_description'],  # Descrição aprimorada
+            'tags': parsed_result['tags'],  # Tags podem ser extraídas da resposta, se aplicável
+            'full_response': content
+        }
+
+    except Exception as e:
+        return {"error": f"Erro ao processar a imagem: {e}"}
