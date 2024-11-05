@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from services.openai_service import enhance_product_description
+from utils.helpers import ajust_img
 import base64
 
 product_blueprint = Blueprint('product_blueprint', __name__)
@@ -13,7 +14,9 @@ def process_image():
     title = request.form.get('title', '')
     initial_description = request.form.get('description', '')
     
-    image_base64 = base64.b64encode(image_file.read()).decode('utf-8')
+    processed_image = ajust_img(image_file)
+    
+    image_base64 = base64.b64encode(processed_image.read()).decode('utf-8')
 
     # Passar a imagem para o serviço que faz a análise
     result = enhance_product_description(image_base64, title, initial_description)
